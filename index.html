@@ -1534,6 +1534,14 @@
                 <div class="section-label">Analysis Complete</div>
                 <h2 class="section-title">Your Stress Test Results</h2>
                 <p class="section-subtitle">Here's how your portfolio would perform under various market conditions</p>
+                <div class="results-actions" style="display: flex; gap: 12px; justify-content: center; margin-top: 24px;">
+                    <button onclick="shareResults()" class="btn btn-secondary" style="padding: 12px 20px; font-size: 0.9rem;">
+                        📤 Share Results
+                    </button>
+                    <button onclick="window.scrollTo({top: 0, behavior: 'smooth'}); setTimeout(() => document.getElementById('builder').scrollIntoView({behavior: 'smooth'}), 100);" class="btn btn-secondary" style="padding: 12px 20px; font-size: 0.9rem;">
+                        🔄 Test Another Portfolio
+                    </button>
+                </div>
             </div>
 
             <!-- Summary Cards -->
@@ -1615,9 +1623,22 @@
 
     <!-- Loading Overlay -->
     <div class="loading-overlay" id="loadingOverlay">
-        <div class="loading-spinner"></div>
-        <div class="loading-text">Running Stress Test...</div>
-        <div class="loading-subtext" id="loadingSubtext">Fetching market data</div>
+        <div class="loading-content" style="text-align: center;">
+            <div class="loading-spinner"></div>
+            <div class="loading-text">Running Stress Test...</div>
+            <div class="loading-subtext" id="loadingSubtext">Fetching market data</div>
+            <div class="loading-progress" style="margin-top: 24px;">
+                <div class="progress-bar" style="width: 300px; height: 4px; background: rgba(255,255,255,0.1); border-radius: 2px; overflow: hidden;">
+                    <div id="progressFill" style="width: 0%; height: 100%; background: var(--gradient-1); transition: width 0.3s ease;"></div>
+                </div>
+                <div class="progress-steps" style="display: flex; justify-content: space-between; margin-top: 12px; font-size: 0.75rem; color: var(--text-muted);">
+                    <span id="step1" class="step">📡 Fetching Data</span>
+                    <span id="step2" class="step">📊 Crisis Analysis</span>
+                    <span id="step3" class="step">🎲 Monte Carlo</span>
+                    <span id="step4" class="step">✨ Generating</span>
+                </div>
+            </div>
+        </div>
     </div>
 
     <!-- Toast -->
@@ -2162,15 +2183,20 @@
             const portfolioValue = parseFloat(document.getElementById('portfolioValue').value.replace(/,/g, '')) || 100000;
 
             showLoading(true);
-            updateLoadingText('Fetching historical data...');
+            updateLoadingText('Connecting to market data...', 5, 1);
 
             try {
                 // Fetch data for all holdings
                 const endDate = new Date().toISOString().split('T')[0];
                 const startDate = '2000-01-01';
                 
-                const stockDataPromises = holdings.map(h => 
-                    fetchStockData(h.ticker, startDate, endDate)
+                updateLoadingText(`Fetching data for ${holdings.length} assets...`, 15, 1);
+                
+                const stockDataPromises = holdings.map((h, i) => 
+                    fetchStockData(h.ticker, startDate, endDate).then(data => {
+                        updateLoadingText(`Fetched ${h.ticker}...`, 15 + (i+1) * (25/holdings.length), 1);
+                        return data;
+                    })
                 );
                 
                 const stockDataResults = await Promise.all(stockDataPromises);
@@ -2178,28 +2204,28 @@
                 // Check for failed fetches
                 const failedTickers = [];
                 holdings.forEach((h, i) => {
-                    if (!stockDataResults[i]) {
+                    if (!stockDataResults[i] || stockDataResults[i].length === 0) {
                         failedTickers.push(h.ticker);
                     }
                 });
 
-                if (failedTickers.length > 0) {
-                    showToast(`Could not fetch data for: ${failedTickers.join(', ')}. Using simulated data.`, 'error');
+                if (failedTickers.length > 0 && failedTickers.length < holdings.length) {
+                    showToast(`Using simulated data for: ${failedTickers.join(', ')}`, 'error');
                 }
 
-                updateLoadingText('Analyzing historical crises...');
-                await sleep(500);
+                updateLoadingText('Replaying historical crashes...', 45, 2);
+                await sleep(400);
 
                 // Run crisis analysis
                 const crisisResults = await analyzeCrises(holdings, stockDataResults, portfolioValue);
                 
-                updateLoadingText('Running Monte Carlo simulation...');
-                await sleep(500);
+                updateLoadingText('Running 10,000 Monte Carlo simulations...', 65, 3);
+                await sleep(400);
 
                 // Run Monte Carlo
                 const monteCarloResults = runMonteCarlo(holdings, stockDataResults, portfolioValue);
 
-                updateLoadingText('Generating report...');
+                updateLoadingText('Generating your report...', 90, 4);
                 await sleep(300);
 
                 // Display results
@@ -2715,8 +2741,25 @@
             }
         }
 
-        function updateLoadingText(text) {
+        function updateLoadingText(text, progress = 0, step = 0) {
             document.getElementById('loadingSubtext').textContent = text;
+            document.getElementById('progressFill').style.width = progress + '%';
+            
+            // Update step highlights
+            for (let i = 1; i <= 4; i++) {
+                const stepEl = document.getElementById('step' + i);
+                if (stepEl) {
+                    if (i < step) {
+                        stepEl.style.color = 'var(--accent)';
+                    } else if (i === step) {
+                        stepEl.style.color = 'var(--primary-light)';
+                        stepEl.style.fontWeight = '600';
+                    } else {
+                        stepEl.style.color = 'var(--text-muted)';
+                        stepEl.style.fontWeight = '400';
+                    }
+                }
+            }
         }
 
         function showToast(message, type = 'info') {
@@ -2731,6 +2774,55 @@
             setTimeout(() => {
                 toast.classList.remove('visible');
             }, 4000);
+        }
+
+        function shareResults() {
+            const holdings = getPortfolioHoldings();
+            const holdingsText = holdings.map(h => `${h.ticker}: ${h.allocation}%`).join(', ');
+            
+            const summaryCards = document.querySelectorAll('#summaryCards .result-card');
+            let summaryText = '';
+            summaryCards.forEach(card => {
+                const value = card.querySelector('.value')?.textContent || '';
+                const label = card.querySelector('.label')?.textContent || '';
+                if (value && label) {
+                    summaryText += `${label}: ${value}\n`;
+                }
+            });
+
+            const shareText = `📊 Portfolio Stress Test Results
+
+Portfolio: ${holdingsText}
+
+${summaryText}
+Tested at: rajkcho.github.io/Portfolio/`;
+
+            if (navigator.share) {
+                navigator.share({
+                    title: 'Portfolio Stress Test Results',
+                    text: shareText,
+                    url: 'https://rajkcho.github.io/Portfolio/'
+                }).catch(() => {
+                    copyToClipboard(shareText);
+                });
+            } else {
+                copyToClipboard(shareText);
+            }
+        }
+
+        function copyToClipboard(text) {
+            navigator.clipboard.writeText(text).then(() => {
+                showToast('Results copied to clipboard!', 'success');
+            }).catch(() => {
+                // Fallback
+                const textarea = document.createElement('textarea');
+                textarea.value = text;
+                document.body.appendChild(textarea);
+                textarea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textarea);
+                showToast('Results copied to clipboard!', 'success');
+            });
         }
 
         // Add CSS animation for slide out
