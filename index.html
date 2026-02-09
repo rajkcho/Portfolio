@@ -4,6 +4,32 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Portfolio Stress Tester | See How Your Portfolio Survives</title>
+    
+    <!-- SEO & Social Meta Tags -->
+    <meta name="description" content="Stress test your investment portfolio against historical market crashes, run Monte Carlo simulations, and see how your assets perform under pressure. Free, real-time analysis.">
+    <meta name="keywords" content="portfolio stress test, monte carlo simulation, investment analysis, market crash simulator, portfolio risk, financial planning">
+    <meta name="author" content="Raj Chopra">
+    
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://rajkcho.github.io/Portfolio/">
+    <meta property="og:title" content="Portfolio Stress Tester | See How Your Portfolio Survives Chaos">
+    <meta property="og:description" content="Test your investments against the 2008 crash, COVID, and more. Run 10,000 Monte Carlo simulations. Free.">
+    <meta property="og:image" content="https://rajkcho.github.io/Portfolio/og-image.png">
+    
+    <!-- Twitter -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:url" content="https://rajkcho.github.io/Portfolio/">
+    <meta name="twitter:title" content="Portfolio Stress Tester | See How Your Portfolio Survives Chaos">
+    <meta name="twitter:description" content="Test your investments against the 2008 crash, COVID, and more. Run 10,000 Monte Carlo simulations. Free.">
+    <meta name="twitter:image" content="https://rajkcho.github.io/Portfolio/og-image.png">
+    
+    <!-- Favicon -->
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📊</text></svg>">
+    
+    <!-- Theme Color -->
+    <meta name="theme-color" content="#0F0F1A">
+    
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
@@ -1621,6 +1647,19 @@
                 </div>
             </div>
 
+            <!-- Correlation Matrix Section -->
+            <div class="correlation-section" id="correlationSection" style="margin-top: 60px; display: none;">
+                <h3 class="section-title" style="font-size: 1.75rem; margin-bottom: 32px;">Asset Correlation Matrix</h3>
+                <div class="correlation-container" style="background: var(--glass); backdrop-filter: blur(20px); border: 1px solid var(--glass-border); border-radius: 24px; padding: 32px; overflow-x: auto;">
+                    <div id="correlationMatrix" style="display: inline-block; min-width: 100%;"></div>
+                    <div style="margin-top: 16px; display: flex; justify-content: center; gap: 24px; font-size: 0.85rem; color: var(--text-muted);">
+                        <span><span style="display: inline-block; width: 16px; height: 16px; background: #EF4444; border-radius: 3px; vertical-align: middle; margin-right: 6px;"></span>Strong Negative</span>
+                        <span><span style="display: inline-block; width: 16px; height: 16px; background: #6B7280; border-radius: 3px; vertical-align: middle; margin-right: 6px;"></span>No Correlation</span>
+                        <span><span style="display: inline-block; width: 16px; height: 16px; background: #10B981; border-radius: 3px; vertical-align: middle; margin-right: 6px;"></span>Strong Positive</span>
+                    </div>
+                </div>
+            </div>
+
             <!-- Monte Carlo Section -->
             <div class="monte-carlo-section">
                 <h3 class="section-title" style="font-size: 1.75rem; margin-bottom: 32px;">Monte Carlo Projection</h3>
@@ -2613,6 +2652,118 @@
 
             // Initialize year selector buttons
             initYearSelector(holdings, stockDataResults, portfolioValue);
+
+            // Render correlation matrix
+            if (holdings.length >= 2) {
+                const correlationMatrix = calculateCorrelationMatrix(holdings, stockDataResults);
+                renderCorrelationMatrix(holdings, correlationMatrix);
+            }
+        }
+
+        function calculateCorrelationMatrix(holdings, stockDataResults) {
+            const returns = [];
+            
+            // Calculate daily returns for each asset
+            holdings.forEach((holding, i) => {
+                const data = stockDataResults[i];
+                if (!data || data.length < 30) {
+                    returns.push(null);
+                    return;
+                }
+                
+                const dailyReturns = [];
+                for (let j = 1; j < Math.min(data.length, 252); j++) {
+                    if (data[j].close && data[j-1].close) {
+                        dailyReturns.push((data[j].close - data[j-1].close) / data[j-1].close);
+                    }
+                }
+                returns.push(dailyReturns);
+            });
+
+            // Calculate correlations
+            const matrix = [];
+            for (let i = 0; i < holdings.length; i++) {
+                matrix[i] = [];
+                for (let j = 0; j < holdings.length; j++) {
+                    if (i === j) {
+                        matrix[i][j] = 1;
+                    } else if (!returns[i] || !returns[j]) {
+                        matrix[i][j] = 0;
+                    } else {
+                        matrix[i][j] = calculateCorrelation(returns[i], returns[j]);
+                    }
+                }
+            }
+
+            return matrix;
+        }
+
+        function calculateCorrelation(arr1, arr2) {
+            const n = Math.min(arr1.length, arr2.length);
+            if (n < 10) return 0;
+
+            const slice1 = arr1.slice(0, n);
+            const slice2 = arr2.slice(0, n);
+
+            const mean1 = slice1.reduce((a, b) => a + b, 0) / n;
+            const mean2 = slice2.reduce((a, b) => a + b, 0) / n;
+
+            let num = 0, den1 = 0, den2 = 0;
+            for (let i = 0; i < n; i++) {
+                const diff1 = slice1[i] - mean1;
+                const diff2 = slice2[i] - mean2;
+                num += diff1 * diff2;
+                den1 += diff1 * diff1;
+                den2 += diff2 * diff2;
+            }
+
+            const den = Math.sqrt(den1 * den2);
+            return den === 0 ? 0 : num / den;
+        }
+
+        function renderCorrelationMatrix(holdings, matrix) {
+            const container = document.getElementById('correlationMatrix');
+            const section = document.getElementById('correlationSection');
+            
+            if (holdings.length < 2) {
+                section.style.display = 'none';
+                return;
+            }
+            
+            section.style.display = 'block';
+            
+            let html = '<table style="border-collapse: collapse; width: 100%;">';
+            
+            // Header row
+            html += '<tr><th style="padding: 12px; text-align: center;"></th>';
+            holdings.forEach(h => {
+                html += `<th style="padding: 12px; text-align: center; color: var(--text-secondary); font-weight: 600;">${h.ticker}</th>`;
+            });
+            html += '</tr>';
+            
+            // Data rows
+            matrix.forEach((row, i) => {
+                html += `<tr><td style="padding: 12px; text-align: center; color: var(--text-secondary); font-weight: 600;">${holdings[i].ticker}</td>`;
+                row.forEach((val, j) => {
+                    const color = getCorrelationColor(val);
+                    const displayVal = val.toFixed(2);
+                    html += `<td style="padding: 12px; text-align: center; background: ${color}; border-radius: 8px; margin: 2px; font-weight: 600; color: white; text-shadow: 0 1px 2px rgba(0,0,0,0.3);">${displayVal}</td>`;
+                });
+                html += '</tr>';
+            });
+            
+            html += '</table>';
+            container.innerHTML = html;
+        }
+
+        function getCorrelationColor(val) {
+            if (val >= 0.7) return '#10B981';
+            if (val >= 0.4) return '#34D399';
+            if (val >= 0.1) return '#6EE7B7';
+            if (val >= -0.1) return '#6B7280';
+            if (val >= -0.4) return '#FCA5A5';
+            if (val >= -0.7) return '#F87171';
+            return '#EF4444';
         }
 
         function initYearSelector(holdings, stockDataResults, portfolioValue) {
