@@ -912,6 +912,7 @@
         .mc-stat-value {
             font-size: 1.75rem;
             font-weight: 800;
+            transition: all 0.3s ease;
         }
 
         .mc-stat-subtext {
@@ -1434,7 +1435,22 @@
                 <div class="builder-form">
                     <div class="form-header">
                         <h3 class="form-title">Your Holdings</h3>
-                        <p class="form-subtitle">Add tickers and their allocation percentages</p>
+                        <p class="form-subtitle">Add tickers and allocation percentages, or use a preset</p>
+                    </div>
+                    
+                    <div class="preset-buttons" style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 20px;">
+                        <button class="preset-btn" onclick="loadPreset('conservative')" style="padding: 8px 14px; border-radius: 8px; background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.3); color: var(--accent); font-size: 0.85rem; cursor: pointer; transition: all 0.3s ease;">
+                            🛡️ Conservative
+                        </button>
+                        <button class="preset-btn" onclick="loadPreset('balanced')" style="padding: 8px 14px; border-radius: 8px; background: rgba(139, 92, 246, 0.1); border: 1px solid rgba(139, 92, 246, 0.3); color: var(--primary-light); font-size: 0.85rem; cursor: pointer; transition: all 0.3s ease;">
+                            ⚖️ Balanced
+                        </button>
+                        <button class="preset-btn" onclick="loadPreset('aggressive')" style="padding: 8px 14px; border-radius: 8px; background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3); color: var(--danger); font-size: 0.85rem; cursor: pointer; transition: all 0.3s ease;">
+                            🚀 Aggressive
+                        </button>
+                        <button class="preset-btn" onclick="loadPreset('techHeavy')" style="padding: 8px 14px; border-radius: 8px; background: rgba(6, 182, 212, 0.1); border: 1px solid rgba(6, 182, 212, 0.3); color: var(--secondary); font-size: 0.85rem; cursor: pointer; transition: all 0.3s ease;">
+                            💻 Tech Heavy
+                        </button>
                     </div>
                     
                     <div class="holdings-list" id="holdingsList">
@@ -1843,6 +1859,69 @@
             } else {
                 showToast('You need at least one holding', 'error');
             }
+        }
+
+        // Portfolio presets
+        const PRESETS = {
+            conservative: [
+                { ticker: 'BND', allocation: 50 },
+                { ticker: 'VTI', allocation: 30 },
+                { ticker: 'GLD', allocation: 10 },
+                { ticker: 'VNQ', allocation: 10 }
+            ],
+            balanced: [
+                { ticker: 'VTI', allocation: 40 },
+                { ticker: 'VXUS', allocation: 20 },
+                { ticker: 'BND', allocation: 25 },
+                { ticker: 'GLD', allocation: 10 },
+                { ticker: 'VNQ', allocation: 5 }
+            ],
+            aggressive: [
+                { ticker: 'VTI', allocation: 50 },
+                { ticker: 'QQQ', allocation: 25 },
+                { ticker: 'VXUS', allocation: 15 },
+                { ticker: 'VNQ', allocation: 10 }
+            ],
+            techHeavy: [
+                { ticker: 'QQQ', allocation: 35 },
+                { ticker: 'AAPL', allocation: 15 },
+                { ticker: 'MSFT', allocation: 15 },
+                { ticker: 'GOOGL', allocation: 10 },
+                { ticker: 'AMZN', allocation: 10 },
+                { ticker: 'NVDA', allocation: 15 }
+            ]
+        };
+
+        function loadPreset(presetName) {
+            const preset = PRESETS[presetName];
+            if (!preset) return;
+
+            const holdingsList = document.getElementById('holdingsList');
+            holdingsList.innerHTML = '';
+
+            preset.forEach((holding, index) => {
+                const row = document.createElement('div');
+                row.className = 'holding-row';
+                row.style.animation = `slideIn 0.3s ease ${index * 0.05}s forwards`;
+                row.style.opacity = '0';
+                row.innerHTML = `
+                    <div class="input-group">
+                        <input type="text" placeholder="Ticker (e.g., AAPL)" class="ticker-input" value="${holding.ticker}">
+                    </div>
+                    <div class="input-group">
+                        <input type="number" placeholder="%" class="allocation-input" value="${holding.allocation}">
+                        <span class="input-suffix">%</span>
+                    </div>
+                    <button class="remove-btn" onclick="removeHolding(this)">×</button>
+                `;
+                holdingsList.appendChild(row);
+            });
+
+            // Reinitialize input listeners
+            initInputListeners();
+            updateAllocationChart();
+
+            showToast(`Loaded ${presetName} portfolio preset`, 'success');
         }
 
         function getPortfolioHoldings() {
@@ -2335,20 +2414,23 @@
             // Crisis cards
             const crisisGrid = document.getElementById('crisisGrid');
             crisisGrid.innerHTML = crisisResults.map((crisis, index) => `
-                <div class="crisis-card" style="animation-delay: ${index * 0.1}s">
+                <div class="crisis-card" style="animation: fadeInUp 0.6s ease ${index * 0.15}s forwards; opacity: 0;">
                     <div class="crisis-header">
                         <div>
                             <div class="crisis-name">${crisis.name}</div>
-                            <div class="crisis-date">${crisis.startDate} to ${crisis.endDate}</div>
+                            <div class="crisis-date">${formatCrisisDate(crisis.startDate)} → ${formatCrisisDate(crisis.endDate)}</div>
                         </div>
-                        <span class="crisis-badge ${crisis.severity}">${crisis.severity}</span>
+                        <span class="crisis-badge ${crisis.severity}">${crisis.severity === 'severe' ? '🔴 Severe' : '🟡 Moderate'}</span>
+                    </div>
+                    <div class="crisis-description" style="color: var(--text-muted); font-size: 0.85rem; margin-bottom: 16px;">
+                        ${crisis.description}
                     </div>
                     <div class="crisis-stats">
                         <div class="crisis-stat">
                             <div class="crisis-stat-value ${crisis.portfolioReturn >= 0 ? 'gain' : 'loss'}">
                                 ${crisis.portfolioReturn >= 0 ? '+' : ''}${crisis.portfolioReturn.toFixed(1)}%
                             </div>
-                            <div class="crisis-stat-label">Your Return</div>
+                            <div class="crisis-stat-label">Your Portfolio</div>
                         </div>
                         <div class="crisis-stat">
                             <div class="crisis-stat-value loss">${crisis.spyDrop.toFixed(1)}%</div>
@@ -2356,13 +2438,28 @@
                         </div>
                         <div class="crisis-stat">
                             <div class="crisis-stat-value ${crisis.vsSpy >= 0 ? 'gain' : 'loss'}">
-                                ${crisis.vsSpy >= 0 ? '+' : ''}${crisis.vsSpy.toFixed(1)}%
+                                ${crisis.vsSpy >= 0 ? '✅ +' : '❌ '}${Math.abs(crisis.vsSpy).toFixed(1)}%
                             </div>
                             <div class="crisis-stat-label">vs Market</div>
                         </div>
                     </div>
+                    <div class="crisis-insights" style="margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--glass-border);">
+                        <div style="display: flex; justify-content: space-between; font-size: 0.85rem;">
+                            <span style="color: var(--text-muted);">Recovery estimate:</span>
+                            <span style="color: var(--primary-light); font-weight: 600;">${crisis.recoveryMonths} months</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; font-size: 0.85rem; margin-top: 8px;">
+                            <span style="color: var(--text-muted);">Dollar impact:</span>
+                            <span style="color: ${crisis.dollarChange >= 0 ? 'var(--accent)' : 'var(--danger)'}; font-weight: 600;">
+                                ${crisis.dollarChange >= 0 ? '+' : ''}$${formatNumber(Math.abs(crisis.dollarChange))}
+                            </span>
+                        </div>
+                    </div>
                 </div>
             `).join('');
+
+            // Animate cards after render
+            setTimeout(animateResults, 100);
 
             // Monte Carlo chart
             renderMonteCarloChart(monteCarloResults);
@@ -2370,27 +2467,98 @@
             // Monte Carlo stats
             const mcStats = document.getElementById('monteCarloStats');
             mcStats.innerHTML = `
-                <div class="mc-stat-card">
-                    <div class="mc-stat-label">Best Case (95th percentile)</div>
+                <div class="mc-stat-card" style="animation: fadeInUp 0.5s ease 0.1s forwards; opacity: 0;">
+                    <div class="mc-stat-label">🎯 Best Case (95th %)</div>
                     <div class="mc-stat-value" style="color: var(--accent)">$${formatNumber(monteCarloResults.finalValues.p95)}</div>
-                    <div class="mc-stat-subtext">${((monteCarloResults.finalValues.p95 / portfolioValue - 1) * 100).toFixed(0)}% return</div>
+                    <div class="mc-stat-subtext">+${((monteCarloResults.finalValues.p95 / portfolioValue - 1) * 100).toFixed(0)}% total return</div>
                 </div>
-                <div class="mc-stat-card">
-                    <div class="mc-stat-label">Expected (Median)</div>
+                <div class="mc-stat-card" style="animation: fadeInUp 0.5s ease 0.2s forwards; opacity: 0;">
+                    <div class="mc-stat-label">📊 Expected (Median)</div>
                     <div class="mc-stat-value" style="color: var(--primary-light)">$${formatNumber(monteCarloResults.finalValues.p50)}</div>
-                    <div class="mc-stat-subtext">${((monteCarloResults.finalValues.p50 / portfolioValue - 1) * 100).toFixed(0)}% return</div>
+                    <div class="mc-stat-subtext">+${((monteCarloResults.finalValues.p50 / portfolioValue - 1) * 100).toFixed(0)}% total return</div>
                 </div>
-                <div class="mc-stat-card">
-                    <div class="mc-stat-label">Worst Case (5th percentile)</div>
+                <div class="mc-stat-card" style="animation: fadeInUp 0.5s ease 0.3s forwards; opacity: 0;">
+                    <div class="mc-stat-label">⚠️ Worst Case (5th %)</div>
                     <div class="mc-stat-value" style="color: var(--danger)">$${formatNumber(monteCarloResults.finalValues.p5)}</div>
-                    <div class="mc-stat-subtext">${((monteCarloResults.finalValues.p5 / portfolioValue - 1) * 100).toFixed(0)}% return</div>
+                    <div class="mc-stat-subtext">${((monteCarloResults.finalValues.p5 / portfolioValue - 1) * 100).toFixed(0)}% total return</div>
                 </div>
-                <div class="mc-stat-card">
-                    <div class="mc-stat-label">Probability of Loss</div>
+                <div class="mc-stat-card" style="animation: fadeInUp 0.5s ease 0.4s forwards; opacity: 0;">
+                    <div class="mc-stat-label">🎲 Probability of Loss</div>
                     <div class="mc-stat-value" style="color: ${monteCarloResults.probLoss > 20 ? 'var(--warning)' : 'var(--accent)'}">${monteCarloResults.probLoss.toFixed(1)}%</div>
                     <div class="mc-stat-subtext">After ${monteCarloResults.years} years</div>
                 </div>
+                <div class="mc-stat-card" style="animation: fadeInUp 0.5s ease 0.5s forwards; opacity: 0;">
+                    <div class="mc-stat-label">🚀 Chance to Double</div>
+                    <div class="mc-stat-value" style="color: var(--secondary)">${monteCarloResults.probDouble.toFixed(1)}%</div>
+                    <div class="mc-stat-subtext">Reach $${formatNumber(portfolioValue * 2)}+</div>
+                </div>
             `;
+
+            // Store results globally for year selector
+            window.currentMonteCarloData = {
+                holdings,
+                stockDataResults,
+                portfolioValue
+            };
+
+            // Initialize year selector buttons
+            initYearSelector(holdings, stockDataResults, portfolioValue);
+        }
+
+        function initYearSelector(holdings, stockDataResults, portfolioValue) {
+            document.querySelectorAll('.chart-control-btn').forEach(btn => {
+                btn.addEventListener('click', async function() {
+                    // Update active state
+                    document.querySelectorAll('.chart-control-btn').forEach(b => b.classList.remove('active'));
+                    this.classList.add('active');
+                    
+                    const years = parseInt(this.dataset.years);
+                    
+                    // Show loading state
+                    document.querySelector('.chart-title').textContent = `${years}-Year Projection (calculating...)`;
+                    
+                    // Recalculate Monte Carlo with new years
+                    setTimeout(() => {
+                        const newResults = runMonteCarlo(holdings, stockDataResults, portfolioValue, years);
+                        renderMonteCarloChart(newResults);
+                        document.querySelector('.chart-title').textContent = `${years}-Year Projection (10,000 Simulations)`;
+                        
+                        // Update stats
+                        updateMonteCarloStats(newResults, portfolioValue);
+                    }, 100);
+                });
+            });
+        }
+
+        function updateMonteCarloStats(results, portfolioValue) {
+            const mcStats = document.getElementById('monteCarloStats');
+            const cards = mcStats.querySelectorAll('.mc-stat-card');
+            
+            const updates = [
+                { value: `$${formatNumber(results.finalValues.p95)}`, sub: `+${((results.finalValues.p95 / portfolioValue - 1) * 100).toFixed(0)}% total return` },
+                { value: `$${formatNumber(results.finalValues.p50)}`, sub: `+${((results.finalValues.p50 / portfolioValue - 1) * 100).toFixed(0)}% total return` },
+                { value: `$${formatNumber(results.finalValues.p5)}`, sub: `${((results.finalValues.p5 / portfolioValue - 1) * 100).toFixed(0)}% total return` },
+                { value: `${results.probLoss.toFixed(1)}%`, sub: `After ${results.years} years` },
+                { value: `${results.probDouble.toFixed(1)}%`, sub: `Reach $${formatNumber(portfolioValue * 2)}+` }
+            ];
+
+            cards.forEach((card, i) => {
+                if (updates[i]) {
+                    const valueEl = card.querySelector('.mc-stat-value');
+                    const subEl = card.querySelector('.mc-stat-subtext');
+                    
+                    // Animate update
+                    valueEl.style.transform = 'scale(0.8)';
+                    valueEl.style.opacity = '0';
+                    
+                    setTimeout(() => {
+                        valueEl.textContent = updates[i].value;
+                        subEl.textContent = updates[i].sub;
+                        valueEl.style.transform = 'scale(1)';
+                        valueEl.style.opacity = '1';
+                    }, 200);
+                }
+            });
         }
 
         function renderMonteCarloChart(results) {
@@ -2520,12 +2688,18 @@
         // ============================================
 
         function formatNumber(num) {
-            if (num >= 1000000) {
-                return (num / 1000000).toFixed(1) + 'M';
-            } else if (num >= 1000) {
-                return (num / 1000).toFixed(0) + 'K';
+            if (Math.abs(num) >= 1000000) {
+                return (num / 1000000).toFixed(2) + 'M';
+            } else if (Math.abs(num) >= 1000) {
+                return (num / 1000).toFixed(1) + 'K';
             }
             return num.toFixed(0);
+        }
+
+        function formatCrisisDate(dateStr) {
+            const date = new Date(dateStr);
+            const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+            return `${months[date.getMonth()]} ${date.getFullYear()}`;
         }
 
         function sleep(ms) {
